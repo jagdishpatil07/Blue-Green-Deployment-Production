@@ -1,0 +1,179 @@
+pipeline {
+    agent any
+
+    tools {
+        maven 'maven3'
+    }
+
+    environment {
+        IMAGE_NAME = "jagdish0707/bankapp"
+        TAG = "${params.DOCKER_TAG}"
+        SCANNER_HOME = tool 'sonar-scanner'
+        KUBE_NAMESPACE = "webapps"
+    }
+
+    parameters {
+        choice(name: 'DEPLOY_ENV', choices: ['blue', 'green'], description: 'Choose which environment to deploy: Blue or Green')
+        choice(name: 'DOCKER_TAG', choices: ['blue', 'green'], description: 'Choose the Docker image tag for the deployment')
+        booleanParam(name: 'SWITCH_TRAFFIC', defaultValue: false, description: 'Switch traffic between Blue and Green')
+    }
+
+    stages {
+        stage('Git Checkout') {
+            steps {
+                git branch: 'main', url: 'https://github.com/jagdishpatil07/Blue-Green-Deployment-Production.git'
+            }
+        }
+
+        stage('Compile') {
+            steps {
+                sh "mvn compile"
+            }
+        }
+
+    
+
+        stage('Trivy Scan') {
+            steps {
+                sh "trivy fs --format table -o fs.html ."
+            }
+        }
+
+        stage('SonarQube Analysis') {
+            steps {
+                withSonarQubeEnv('sonar') {
+                    sh "${SCANNER_HOME}/bin/sonar-scanner -Dsonar.projectKey=Multitier -Dsonar.java.binaries=target"
+                }
+            }
+        }
+
+        stage('Quality Gate') {
+            steps {
+                timeout(time: 1, unit: 'HOURS') {
+                    waitForQualityGate abortPipeline: false
+                }
+            }
+        }
+
+        stage('Build Package') {
+            steps {
+                sh "mvn package -DskipTests=true"
+            }
+        }
+
+        stage('Publish Artifact') {
+            steps {
+                withMaven(globalMavenSettingsConfig: 'maven-settings', maven: 'maven3') {
+                    sh "mvn deploy -DskipTests=true"
+                }
+            }
+        }
+
+        stage('Docker Build and Tag') {
+            steps {
+                withDockerRegistry(credentialsId: 'docker-cred', url: 'https://index.docker.io/v1/') {
+                    sh "docker build -t ${IMAGE_NAME}:${TAG} ."
+                }
+            }
+        }
+
+        stage('Docker Push') {
+            steps {
+                withDockerRegistry(credentialsId: 'docker-cred', url: 'https://index.docker.io/v1/') {
+                    sh "docker push ${IMAGE_NAME}:${TAG}"
+                }
+            }
+        }
+
+        stage('Deploy MySQL') {
+            steps {
+                script {
+                    withKubeConfig(
+                        clusterName: 'jagdish-cluster',
+                        credentialsId: 'k8-token',
+                        namespace: "${env.KUBE_NAMESPACE}",
+                        serverUrl: 'https://2BC655A64234F47130971B836707FCF1.gr7.us-east-1.eks.amazonaws.com'
+                    ) {
+                        sh "kubectl apply -f mysql-ds.yml -n ${env.KUBE_NAMESPACE}"
+                    }
+                }
+            }
+        }
+
+        stage('Deploy Service (SVC)') {
+            steps {
+                script {
+                    withKubeConfig(
+                        clusterName: 'jagdish-cluster',
+                        credentialsId: 'k8-token',
+                        namespace: "${env.KUBE_NAMESPACE}",
+                        serverUrl: 'https://2BC655A64234F47130971B836707FCF1.gr7.us-east-1.eks.amazonaws.com'
+                    ) {
+                        sh """
+                            if ! kubectl get svc bankapp-service -n ${env.KUBE_NAMESPACE}; then
+                                kubectl apply -f bankapp-service.yml -n ${env.KUBE_NAMESPACE}
+                            fi
+                        """
+                    }
+                }
+            }
+        }
+
+        stage('Deploy to Kubernetes') {
+            steps {
+                script {
+                    def deploymentFile = params.DEPLOY_ENV == 'blue' ? 'app-deployment-blue.yml' : 'app-deployment-green.yml'
+                    withKubeConfig(
+                        clusterName: 'jagdish-cluster',
+                        credentialsId: 'k8-token',
+                        namespace: "${env.KUBE_NAMESPACE}",
+                        serverUrl: 'https://2BC655A64234F47130971B836707FCF1.gr7.us-east-1.eks.amazonaws.com'
+                    ) {
+                        sh "kubectl apply -f ${deploymentFile} -n ${env.KUBE_NAMESPACE}"
+                    }
+                }
+            }
+        }
+
+        stage('Switch Traffic') {
+            when {
+                expression { return params.SWITCH_TRAFFIC }
+            }
+            steps {
+                script {
+                    def newEnv = params.DEPLOY_ENV
+                    withKubeConfig(
+                        clusterName: 'jagdish-cluster',
+                        credentialsId: 'k8-token',
+                        namespace: "${env.KUBE_NAMESPACE}",
+                        serverUrl: 'https://2BC655A64234F47130971B836707FCF1.gr7.us-east-1.eks.amazonaws.com'
+                    ) {
+                        sh """
+                            kubectl patch service bankapp-service -p '{"spec": {"selector": {"app": "bankapp", "version": "${newEnv}"}}}' -n ${env.KUBE_NAMESPACE}
+                        """
+                    }
+                    echo "Traffic switched to ${newEnv} environment."
+                }
+            }
+        }
+
+        stage('Verify Deployment') {
+            steps {
+                script {
+                    def verifyEnv = params.DEPLOY_ENV
+                    withKubeConfig(
+                        clusterName: 'jagdish-cluster',
+                        credentialsId: 'k8-token',
+                        namespace: "${env.KUBE_NAMESPACE}",
+                        serverUrl: 'https://2BC655A64234F47130971B836707FCF1.gr7.us-east-1.eks.amazonaws.com'
+                    ) {
+                        sh """
+                            kubectl get pods -l version=${verifyEnv} -n ${env.KUBE_NAMESPACE}
+                            kubectl get svc bankapp-service -n ${env.KUBE_NAMESPACE}
+                        """
+                    }
+                }
+            }
+        }
+    }
+}
