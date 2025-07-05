@@ -96,7 +96,7 @@ pipeline {
                         clusterName: 'jagdish-cluster',
                         credentialsId: 'k8-token',
                         namespace: "${env.KUBE_NAMESPACE}",
-                        serverUrl: 'https://2BC655A64234F47130971B836707FCF1.gr7.us-east-1.eks.amazonaws.com'
+                        serverUrl: 'https://8732898816B78D50A3D867D0C3677CC1.gr7.us-east-1.eks.amazonaws.com'
                     ) {
                         sh "kubectl apply -f mysql-ds.yml -n ${env.KUBE_NAMESPACE}"
                     }
@@ -111,11 +111,11 @@ pipeline {
                         clusterName: 'jagdish-cluster',
                         credentialsId: 'k8-token',
                         namespace: "${env.KUBE_NAMESPACE}",
-                        serverUrl: 'https://2BC655A64234F47130971B836707FCF1.gr7.us-east-1.eks.amazonaws.com'
+                        serverUrl: 'https://8732898816B78D50A3D867D0C3677CC1.gr7.us-east-1.eks.amazonaws.com'
                     ) {
                         sh '''
-                            if ! kubectl get svc bankapp-service -n ${env.KUBE_NAMESPACE}; then
-                                kubectl apply -f bankapp-service.yml -n ${env.KUBE_NAMESPACE}
+                            if ! kubectl get svc bankapp-service -n ${KUBE_NAMESPACE}; then
+                                kubectl apply -f bankapp-service.yml -n ${KUBE_NAMESPACE}
                             fi
                         '''
                     }
@@ -131,7 +131,7 @@ pipeline {
                         clusterName: 'jagdish-cluster',
                         credentialsId: 'k8-token',
                         namespace: "${env.KUBE_NAMESPACE}",
-                        serverUrl: 'https://2BC655A64234F47130971B836707FCF1.gr7.us-east-1.eks.amazonaws.com'
+                        serverUrl: 'https://8732898816B78D50A3D867D0C3677CC1.gr7.us-east-1.eks.amazonaws.com'
                     ) {
                         sh "kubectl apply -f ${deploymentFile} -n ${env.KUBE_NAMESPACE}"
                     }
@@ -150,11 +150,13 @@ pipeline {
                         clusterName: 'jagdish-cluster',
                         credentialsId: 'k8-token',
                         namespace: "${env.KUBE_NAMESPACE}",
-                        serverUrl: 'https://2BC655A64234F47130971B836707FCF1.gr7.us-east-1.eks.amazonaws.com'
+                        serverUrl: 'https://8732898816B78D50A3D867D0C3677CC1.gr7.us-east-1.eks.amazonaws.com'
                     ) {
-                        sh '''
-                            kubectl patch service bankapp-service -p '{"spec": {"selector": {"app": "bankapp", "version": "${newEnv}"}}}' -n ${env.KUBE_NAMESPACE}
-                        '''
+                        sh """
+                            kubectl patch service bankapp-service \
+                            -p '{"spec": {"selector": {"app": "bankapp", "version": "${newEnv}"}}}' \
+                            -n ${KUBE_NAMESPACE}
+                        """
                     }
                     echo "Traffic switched to ${newEnv} environment."
                 }
@@ -169,12 +171,12 @@ pipeline {
                         clusterName: 'jagdish-cluster',
                         credentialsId: 'k8-token',
                         namespace: "${env.KUBE_NAMESPACE}",
-                        serverUrl: 'https://2BC655A64234F47130971B836707FCF1.gr7.us-east-1.eks.amazonaws.com'
+                        serverUrl: 'https://8732898816B78D50A3D867D0C3677CC1.gr7.us-east-1.eks.amazonaws.com'
                     ) {
-                        sh '''
-                            kubectl get pods -l version=${verifyEnv} -n ${env.KUBE_NAMESPACE}
-                            kubectl get svc bankapp-service -n ${env.KUBE_NAMESPACE}
-                        '''
+                        sh """
+                            kubectl get pods -l version=${verifyEnv} -n ${KUBE_NAMESPACE}
+                            kubectl get svc bankapp-service -n ${KUBE_NAMESPACE}
+                        """
                     }
                 }
             }
