@@ -10,6 +10,7 @@ pipeline {
         TAG = "${params.DOCKER_TAG}"
         SCANNER_HOME = tool 'sonar-scanner'
         KUBE_NAMESPACE = "webapps"
+        EKS_ENDPOINT = 'https://18A25FBF9177B3FDF51CC50B053A39CF.gr7.us-east-1.eks.amazonaws.com'
     }
 
     parameters {
@@ -96,7 +97,7 @@ pipeline {
                         clusterName: 'jagdish-cluster',
                         credentialsId: 'k8-token',
                         namespace: "${env.KUBE_NAMESPACE}",
-                        serverUrl: 'https://8732898816B78D50A3D867D0C3677CC1.gr7.us-east-1.eks.amazonaws.com'
+                        serverUrl: "${env.EKS_ENDPOINT}"
                     ) {
                         sh "kubectl apply -f mysql-ds.yml -n ${env.KUBE_NAMESPACE}"
                     }
@@ -111,7 +112,7 @@ pipeline {
                         clusterName: 'jagdish-cluster',
                         credentialsId: 'k8-token',
                         namespace: "${env.KUBE_NAMESPACE}",
-                        serverUrl: 'https://8732898816B78D50A3D867D0C3677CC1.gr7.us-east-1.eks.amazonaws.com'
+                        serverUrl: "${env.EKS_ENDPOINT}"
                     ) {
                         sh '''
                             if ! kubectl get svc bankapp-service -n ${KUBE_NAMESPACE}; then
@@ -131,7 +132,7 @@ pipeline {
                         clusterName: 'jagdish-cluster',
                         credentialsId: 'k8-token',
                         namespace: "${env.KUBE_NAMESPACE}",
-                        serverUrl: 'https://8732898816B78D50A3D867D0C3677CC1.gr7.us-east-1.eks.amazonaws.com'
+                        serverUrl: "${env.EKS_ENDPOINT}"
                     ) {
                         sh "kubectl apply -f ${deploymentFile} -n ${env.KUBE_NAMESPACE}"
                     }
@@ -150,7 +151,7 @@ pipeline {
                         clusterName: 'jagdish-cluster',
                         credentialsId: 'k8-token',
                         namespace: "${env.KUBE_NAMESPACE}",
-                        serverUrl: 'https://8732898816B78D50A3D867D0C3677CC1.gr7.us-east-1.eks.amazonaws.com'
+                        serverUrl: "${env.EKS_ENDPOINT}"
                     ) {
                         sh """
                             kubectl patch service bankapp-service \
@@ -158,7 +159,7 @@ pipeline {
                             -n ${KUBE_NAMESPACE}
                         """
                     }
-                    echo "Traffic switched to ${newEnv} environment."
+                    echo "✅ Traffic switched to ${newEnv} environment."
                 }
             }
         }
@@ -171,7 +172,7 @@ pipeline {
                         clusterName: 'jagdish-cluster',
                         credentialsId: 'k8-token',
                         namespace: "${env.KUBE_NAMESPACE}",
-                        serverUrl: 'https://8732898816B78D50A3D867D0C3677CC1.gr7.us-east-1.eks.amazonaws.com'
+                        serverUrl: "${env.EKS_ENDPOINT}"
                     ) {
                         sh """
                             kubectl get pods -l version=${verifyEnv} -n ${KUBE_NAMESPACE}
