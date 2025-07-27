@@ -10,7 +10,7 @@ pipeline {
         TAG = "${params.DOCKER_TAG}"
         SCANNER_HOME = tool 'sonar-scanner'
         KUBE_NAMESPACE = "webapps"
-        EKS_ENDPOINT = 'https://18A25FBF9177B3FDF51CC50B053A39CF.gr7.us-east-1.eks.amazonaws.com'
+        EKS_ENDPOINT = 'https://6FF8E42D5E3506AA3824794BF3C02253.gr7.us-east-1.eks.amazonaws.com'
     }
 
     parameters {
